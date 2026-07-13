@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Vellum — Notebook</title>
+<meta name="theme-color" content="#1c1a17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vellum">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Lock screen: blocks all content until the correct PIN is entered -->
+<div class="lock-screen" id="lockScreen" style="display:none;">
+  <div class="lock-card">
+    <div class="lock-mark">V</div>
+    <h2>Vellum is locked</h2>
+    <p class="lock-sub">Enter your PIN to unlock this notebook.</p>
+    <input type="password" inputmode="numeric" pattern="[0-9]*" id="lockPinInput" maxlength="12" autocomplete="off" placeholder="PIN">
+    <div class="lock-error" id="lockError"></div>
+    <button class="pin-ok" id="lockUnlockBtn">Unlock</button>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- Spine: decorative binding on the left edge, also holds page-stitch indicator -->
+  <div class="spine" id="spine">
+    <div class="spine-stitches" id="spineStitches"></div>
+  </div>
+
+  <!-- Top chrome -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">V</span>
+      <span class="brand-name">Vellum</span>
+    </div>
+
+    <button class="notebook-title" id="notebookTitleBtn">
+      <span id="notebookTitle">Untitled Notebook</span>
+      <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 3 L5 7 L9 3" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <div class="page-nav">
+      <button id="prevPage" class="icon-btn" aria-label="Previous page">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M10 2 L4 8 L10 14" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span class="page-count" id="pageCount">1 / 1</span>
+      <button id="nextPage" class="icon-btn" aria-label="Next page">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 2 L12 8 L6 14" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="addPage" class="icon-btn" aria-label="Add page">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2 V14 M2 8 H14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div class="top-actions">
+      <button class="icon-btn" id="pagesBtn" aria-label="All pages">
+        <svg width="17" height="17" viewBox="0 0 17 17"><rect x="2" y="2" width="5.5" height="5.5" rx="1" fill="currentColor" opacity=".85"/><rect x="9.5" y="2" width="5.5" height="5.5" rx="1" fill="currentColor" opacity=".55"/><rect x="2" y="9.5" width="5.5" height="5.5" rx="1" fill="currentColor" opacity=".55"/><rect x="9.5" y="9.5" width="5.5" height="5.5" rx="1" fill="currentColor" opacity=".35"/></svg>
+      </button>
+      <button class="icon-btn" id="libraryBtn" aria-label="Notebook library">
+        <svg width="17" height="17" viewBox="0 0 17 17"><path d="M2 3 v11 M2 3 q3 -1.5 6 0 v11 q-3 -1.5 -6 0 Z M14.5 3 v11 M14.5 3 q-3 -1.5 -6 0 v11 q3 -1.5 6 0 Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="menuBtn" aria-label="More options">
+        <svg width="17" height="17" viewBox="0 0 17 17"><circle cx="8.5" cy="3" r="1.4" fill="currentColor"/><circle cx="8.5" cy="8.5" r="1.4" fill="currentColor"/><circle cx="8.5" cy="14" r="1.4" fill="currentColor"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Canvas stage -->
+  <main class="stage" id="stage">
+    <div class="page-wrap" id="pageWrap">
+      <canvas id="paper"></canvas>
+      <canvas id="ink"></canvas>
+    </div>
+  </main>
+
+  <!-- Bottom tool dock -->
+  <footer class="dock">
+    <div class="dock-group tools">
+      <button class="tool-btn active" data-tool="pen" aria-label="Pen">
+        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 16 L4.8 12.6 L13 4.4 a1.7 1.7 0 0 1 2.4 0 l0.2 0.2 a1.7 1.7 0 0 1 0 2.4 L7.4 15.2 Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M4 16 L7.4 15.2" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="highlighter" aria-label="Highlighter">
+        <svg width="20" height="20" viewBox="0 0 20 20"><rect x="6" y="3" width="6" height="9" rx="0.6" transform="rotate(20 9 7.5)" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8.4 11 L5.6 16.5 L10.2 15.6 Z" fill="currentColor" opacity=".85"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="eraser" aria-label="Eraser">
+        <svg width="20" height="20" viewBox="0 0 20 20"><rect x="4.5" y="8" width="11" height="6" rx="1.4" transform="rotate(-18 10 11)" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="lasso" aria-label="Select">
+        <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 3 C5 3 3 6 3 9 c0 3 2.4 4.6 5 4.3 c-1 1 -1 2.4 0 3 c1 0.6 2.4 0 2.6 -1.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="2.4 2.2"/></svg>
+      </button>
+    </div>
+
+    <div class="dock-group swatches" id="swatches">
+      <!-- populated by JS -->
+    </div>
+
+    <div class="dock-group width-control">
+      <input type="range" id="widthSlider" min="1" max="12" step="0.5" value="2.2">
+    </div>
+
+    <div class="dock-group history">
+      <button class="icon-btn" id="undoBtn" aria-label="Undo">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path d="M6 5 L2.5 8.5 L6 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 8.5 H11 a4.2 4.2 0 0 1 0 8.4 h-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+      <button class="icon-btn" id="redoBtn" aria-label="Redo">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path d="M12 5 L15.5 8.5 L12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M15.5 8.5 H7 a4.2 4.2 0 0 0 0 8.4 h2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </footer>
+
+  <!-- Pages overlay -->
+  <div class="overlay" id="pagesOverlay">
+    <div class="overlay-panel">
+      <div class="overlay-head">
+        <h2>Pages</h2>
+        <button class="icon-btn" id="closePagesOverlay" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 3 L13 13 M13 3 L3 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="pages-grid" id="pagesGrid"></div>
+    </div>
+  </div>
+
+  <!-- Library overlay -->
+  <div class="overlay" id="libraryOverlay">
+    <div class="overlay-panel">
+      <div class="overlay-head">
+        <h2>Notebooks</h2>
+        <button class="icon-btn" id="newNotebookBtn" aria-label="New notebook">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2 V14 M2 8 H14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <button class="icon-btn" id="closeLibraryOverlay" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 3 L13 13 M13 3 L3 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="library-list" id="libraryList"></div>
+    </div>
+  </div>
+
+  <!-- Menu overlay -->
+  <div class="overlay" id="menuOverlay">
+    <div class="overlay-panel menu-panel">
+      <div class="overlay-head">
+        <h2>Options</h2>
+        <button class="icon-btn" id="closeMenuOverlay" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 3 L13 13 M13 3 L3 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="menu-section">
+        <div class="menu-label">Paper style</div>
+        <div class="paper-options" id="paperOptions">
+          <button class="paper-opt active" data-paper="blank">Blank</button>
+          <button class="paper-opt" data-paper="lined">Lined</button>
+          <button class="paper-opt" data-paper="dot">Dot grid</button>
+          <button class="paper-opt" data-paper="graph">Graph</button>
+        </div>
+      </div>
+
+      <div class="menu-section">
+        <label class="menu-toggle">
+          <span>Draw with finger too</span>
+          <input type="checkbox" id="fingerDrawToggle">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="menu-section menu-actions">
+        <button class="menu-action" id="exportPageBtn">Export page as image</button>
+        <button class="menu-action" id="renameNotebookBtn">Rename notebook</button>
+        <button class="menu-action danger" id="clearPageBtn">Clear this page</button>
+        <button class="menu-action danger" id="deletePageBtn">Delete this page</button>
+      </div>
+
+      <div class="menu-section menu-actions" id="securitySection">
+        <div class="menu-label">Security</div>
+        <button class="menu-action" id="enableLockBtn">Set up PIN lock</button>
+        <button class="menu-action" id="lockNowBtn" style="display:none;">Lock now</button>
+        <button class="menu-action" id="changePinBtn" style="display:none;">Change PIN</button>
+        <button class="menu-action danger" id="disableLockBtn" style="display:none;">Turn off lock</button>
+      </div>
+
+      <div class="menu-footer" id="storageInfo">Saved on this iPad</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
