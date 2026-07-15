@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------
-   Vellum — a paper-first notebook for iPad, tuned for Apple Pencil
+   Flower — a paper-first notebook for iPad, tuned for Apple Pencil
 --------------------------------------------------------------- */
 
 /* ===================== Storage (IndexedDB) ===================== */
@@ -68,7 +68,7 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 
 function blankPage(){ return { id: uid(), strokes: [] }; }
 
-function newNotebook(name){
+function newNotebook(name, extra = {}){
   const now = Date.now();
   return {
     id: uid(),
@@ -77,6 +77,8 @@ function newNotebook(name){
     updatedAt: now,
     paperStyle: 'blank',
     currentPageIndex: 0,
+    purpose: extra.purpose || null,
+    cover: extra.cover || { emoji: '📓', color: '#efe7d8' },
     pages: [ blankPage() ]
   };
 }
@@ -205,6 +207,147 @@ function askPin({ title, subtitle, needConfirm = false, okLabel = 'Continue' }){
     overlay.querySelector('.pin-ok').addEventListener('click', submit);
     overlay.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
   });
+}
+
+/* ===================== Onboarding (new notebook wizard) ===================== */
+
+const OB_PURPOSES = [
+  { emoji: '📖', label: 'Nhật ký cá nhân' },
+  { emoji: '📚', label: 'Ghi chú học tập' },
+  { emoji: '💡', label: 'Ý tưởng sáng tạo' },
+  { emoji: '📋', label: 'Kế hoạch công việc' },
+  { emoji: '🌙', label: 'Cảm xúc & suy nghĩ' },
+  { emoji: '✈️', label: 'Du lịch & phiêu lưu' }
+];
+
+const OB_COVERS = {
+  flowers: [
+    { emoji: '🌸', color: '#f3e3ef' },
+    { emoji: '🌻', color: '#fbf3d0' },
+    { emoji: '🌺', color: '#fbe3de' },
+    { emoji: '🌷', color: '#fbe0ea' },
+    { emoji: '🌹', color: '#fadada' },
+    { emoji: '🪷', color: '#e3daf7' },
+    { emoji: '🌼', color: '#fbf3c7' },
+    { emoji: '🍀', color: '#dff7e8' }
+  ],
+  animals: [
+    { emoji: '🦋', color: '#e3daf7' },
+    { emoji: '🐝', color: '#fbf3c7' },
+    { emoji: '🐞', color: '#fadada' },
+    { emoji: '🐢', color: '#dff7e8' },
+    { emoji: '🐇', color: '#f3e3ef' },
+    { emoji: '🦉', color: '#ead9c4' },
+    { emoji: '🐬', color: '#ddeffb' },
+    { emoji: '🦢', color: '#efefef' }
+  ]
+};
+
+function obProgressHTML(step){
+  return `<div class="ob-progress">
+    <span class="seg ${step>=1?'filled':''}"></span>
+    <span class="seg ${step>=2?'filled':''}"></span>
+    <span class="seg ${step>=3?'filled':''}"></span>
+  </div>`;
+}
+
+function runOnboarding(){
+  return new Promise((resolve) => {
+    const ob = { step: 1, purposeIndex: null, name: '', coverSet: 'flowers', coverIndex: 0 };
+    const overlay = document.createElement('div');
+    overlay.className = 'onboarding-overlay';
+    document.body.appendChild(overlay);
+
+    function finish(result){ overlay.remove(); resolve(result); }
+
+    function render(){
+      if (ob.step === 1){
+        overlay.innerHTML = `
+          <div class="ob-card">
+            ${obProgressHTML(1)}
+            <div class="ob-icon">📖</div>
+            <h2>Sổ này dùng để làm gì?</h2>
+            <p class="ob-sub">Chọn mục đích để bắt đầu tốt hơn.</p>
+            <div class="ob-purpose-grid">
+              ${OB_PURPOSES.map((p,i)=>`<button class="ob-purpose${ob.purposeIndex===i?' active':''}" data-i="${i}"><span>${p.emoji}</span>${p.label}</button>`).join('')}
+            </div>
+            <button class="ob-skip">Bỏ qua →</button>
+          </div>`;
+        overlay.querySelectorAll('.ob-purpose').forEach(btn => {
+          btn.addEventListener('click', () => {
+            ob.purposeIndex = parseInt(btn.dataset.i, 10);
+            ob.step = 2;
+            render();
+          });
+        });
+        overlay.querySelector('.ob-skip').addEventListener('click', () => {
+          finish({ name: '', purpose: null, cover: OB_COVERS.flowers[0] });
+        });
+      } else if (ob.step === 2){
+        overlay.innerHTML = `
+          <div class="ob-card">
+            ${obProgressHTML(2)}
+            <div class="ob-icon">✏️</div>
+            <h2>Đặt tên cho sổ của bạn</h2>
+            <p class="ob-sub">Một cái tên riêng giúp bạn dễ tìm lại.</p>
+            <input class="ob-input" id="obNameInput" placeholder="Nhật ký tháng 7..." value="${ob.name.replace(/"/g,'&quot;')}">
+            <div class="ob-actions">
+              <button class="ob-back">← Quay lại</button>
+              <button class="ob-next">Tiếp theo →</button>
+            </div>
+          </div>`;
+        const input = overlay.querySelector('#obNameInput');
+        input.focus();
+        overlay.querySelector('.ob-back').addEventListener('click', () => { ob.name = input.value; ob.step = 1; render(); });
+        overlay.querySelector('.ob-next').addEventListener('click', () => { ob.name = input.value.trim(); ob.step = 3; render(); });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ ob.name = input.value.trim(); ob.step = 3; render(); } });
+      } else {
+        const covers = OB_COVERS[ob.coverSet];
+        overlay.innerHTML = `
+          <div class="ob-card">
+            ${obProgressHTML(3)}
+            <div class="ob-icon">🎨</div>
+            <h2>Chọn bìa sổ</h2>
+            <p class="ob-sub">Bìa sổ sẽ phản ánh cá tính của bạn.</p>
+            <div class="ob-tabs">
+              <button class="ob-tab${ob.coverSet==='flowers'?' active':''}" data-set="flowers">🌸 Hoa lá</button>
+              <button class="ob-tab${ob.coverSet==='animals'?' active':''}" data-set="animals">🦋 Động vật</button>
+            </div>
+            <div class="ob-cover-grid">
+              ${covers.map((c,i)=>`<button class="ob-cover${ob.coverIndex===i?' active':''}" data-i="${i}" style="background:${c.color}"><span>${c.emoji}</span></button>`).join('')}
+            </div>
+            <div class="ob-actions">
+              <button class="ob-back">← Quay lại</button>
+              <button class="ob-create">Tạo sổ →</button>
+            </div>
+          </div>`;
+        overlay.querySelectorAll('.ob-tab').forEach(btn => {
+          btn.addEventListener('click', () => { ob.coverSet = btn.dataset.set; ob.coverIndex = 0; render(); });
+        });
+        overlay.querySelectorAll('.ob-cover').forEach(btn => {
+          btn.addEventListener('click', () => { ob.coverIndex = parseInt(btn.dataset.i, 10); render(); });
+        });
+        overlay.querySelector('.ob-back').addEventListener('click', () => { ob.step = 2; render(); });
+        overlay.querySelector('.ob-create').addEventListener('click', () => {
+          finish({
+            name: ob.name,
+            purpose: ob.purposeIndex !== null ? OB_PURPOSES[ob.purposeIndex] : null,
+            cover: OB_COVERS[ob.coverSet][ob.coverIndex]
+          });
+        });
+      }
+    }
+    render();
+  });
+}
+
+async function createNotebookViaOnboarding(defaultName){
+  const result = await runOnboarding();
+  const nb = newNotebook(result.name || defaultName, { purpose: result.purpose, cover: result.cover });
+  const toStore = state.cryptoKey ? await encryptNotebookRecord(nb, state.cryptoKey) : nb;
+  await idbPut('notebooks', toStore);
+  await idbPut('meta', { key: 'activeNotebookId', value: nb.id });
+  return nb;
 }
 
 /* ===================== App state ===================== */
@@ -616,11 +759,7 @@ async function loadInitialNotebook(){
     state.notebook = await decryptNotebookRecord(rec);
     return;
   }
-  const nb = newNotebook('My Notebook');
-  const toStore = state.cryptoKey ? await encryptNotebookRecord(nb, state.cryptoKey) : nb;
-  await idbPut('notebooks', toStore);
-  await idbPut('meta', { key: 'activeNotebookId', value: nb.id });
-  state.notebook = nb;
+  state.notebook = await createNotebookViaOnboarding('My Notebook');
 }
 
 /* ===================== UI wiring ===================== */
@@ -773,6 +912,14 @@ async function renderLibrary(){
     const item = document.createElement('button');
     item.className = 'library-item' + (nb.id === state.notebook.id ? ' current' : '');
     const icon = document.createElement('div'); icon.className = 'lib-icon';
+    if (nb.cover){
+      icon.style.background = nb.cover.color;
+      icon.style.display = 'flex';
+      icon.style.alignItems = 'center';
+      icon.style.justifyContent = 'center';
+      icon.style.fontSize = '16px';
+      icon.textContent = nb.cover.emoji;
+    }
     const meta = document.createElement('div'); meta.className = 'lib-meta';
     const name = document.createElement('div'); name.className = 'lib-name'; name.textContent = nb.name;
     const sub = document.createElement('div'); sub.className = 'lib-sub';
@@ -821,13 +968,10 @@ function wireUI(){
   $('#libraryBtn').addEventListener('click', () => { renderLibrary(); openOverlay('#libraryOverlay'); });
   $('#closeLibraryOverlay').addEventListener('click', () => closeOverlay('#libraryOverlay'));
   $('#newNotebookBtn').addEventListener('click', async () => {
-    const nb = newNotebook('Untitled Notebook');
-    const toStore = state.cryptoKey ? await encryptNotebookRecord(nb, state.cryptoKey) : nb;
-    await idbPut('notebooks', toStore);
-    state.notebook = nb;
-    await idbPut('meta', { key: 'activeNotebookId', value: nb.id });
-    goToPage(0);
     closeOverlay('#libraryOverlay');
+    const nb = await createNotebookViaOnboarding('Untitled Notebook');
+    state.notebook = nb;
+    goToPage(0);
   });
 
   $('#menuBtn').addEventListener('click', async () => { await renderSecurityMenu(); openOverlay('#menuOverlay'); });
